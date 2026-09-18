@@ -261,7 +261,10 @@ def handle_get_causal_chain(args: dict) -> dict:
                     ),
                     "chain": [],
                 }
-        result = chain if isinstance(chain, list) else list(chain)
+        # CausalChainAnalyzer returns Decision dataclasses, which the tools/call
+        # handler cannot json.dumps. The fallback backends may already return
+        # plain values, so only objects exposing to_dict() are converted.
+        result = [item.to_dict() if hasattr(item, "to_dict") else item for item in chain]
         return {"chain": result, "count": len(result), "direction": direction}
     except Exception as exc:
         log.exception("get_causal_chain failed")

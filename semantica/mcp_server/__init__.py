@@ -275,7 +275,9 @@ def _tool_get_causal_chain(args: dict) -> dict:
         from semantica.context.causal_analyzer import CausalChainAnalyzer
         analyzer = CausalChainAnalyzer(graph_store=graph)
         chain = analyzer.get_causal_chain(decision_id, direction=direction, max_depth=max_depth)
-        return {"chain": chain if isinstance(chain, list) else list(chain)}
+        # The analyzer returns Decision dataclasses, and tools/call json.dumps
+        # this result, so convert them here.
+        return {"chain": [d.to_dict() if hasattr(d, "to_dict") else d for d in chain]}
     except Exception as exc:
         return {"error": str(exc), "chain": []}
 
