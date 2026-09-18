@@ -13,6 +13,7 @@ same tools/call handler a client hits.
 
 import json
 import unittest
+from datetime import datetime
 
 from semantica import mcp_server
 from semantica.context import ContextGraph
@@ -85,6 +86,24 @@ class TestGetCausalChainTool(unittest.TestCase):
             self.assertIsInstance(entry, dict)
             self.assertIn(entry["decision_id"], self.ids)
             self.assertIsInstance(entry["timestamp"], str)
+
+    def test_non_json_metadata_is_stringified(self):
+        """record_decision accepts arbitrary metadata values; a datetime or set
+        in a chained decision must not break the response either."""
+        cause = self.graph.record_decision(
+            category="compliance",
+            scenario="Audit finding",
+            reasoning="test",
+            outcome="approved",
+            confidence=0.9,
+            metadata={"reviewed_at": datetime(2026, 9, 1), "tags": {"hipaa"}},
+        )
+        self.graph.add_causal_relationship(cause, self.ids[0], "CAUSED")
+
+        chain = self._call(decision_id=self.ids[0], direction="upstream")
+        metadata = next(d["metadata"] for d in chain if d["scenario"] == "Audit finding")
+        self.assertEqual(metadata["reviewed_at"], "2026-09-01 00:00:00")
+        self.assertIsInstance(metadata["tags"], str)
 
     def test_unlinked_decision_still_returns_empty_chain(self):
         lone = self.graph.record_decision(

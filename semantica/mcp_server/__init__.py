@@ -276,8 +276,11 @@ def _tool_get_causal_chain(args: dict) -> dict:
         analyzer = CausalChainAnalyzer(graph_store=graph)
         chain = analyzer.get_causal_chain(decision_id, direction=direction, max_depth=max_depth)
         # The analyzer returns Decision dataclasses, and tools/call json.dumps
-        # this result, so convert them here.
-        return {"chain": [d.to_dict() if hasattr(d, "to_dict") else d for d in chain]}
+        # this result. serialize_decision applies the existing default=str
+        # policy, which also covers non-JSON values inside decision metadata.
+        from semantica.context.decision_models import serialize_decision
+        return {"chain": [json.loads(serialize_decision(d)) if hasattr(d, "to_dict") else d
+                          for d in chain]}
     except Exception as exc:
         return {"error": str(exc), "chain": []}
 

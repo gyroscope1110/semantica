@@ -312,6 +312,24 @@ class TestCausalChainSerializationWithRealGraph(unittest.TestCase):
             {"Require BAA from vendors": 1, "Host on AWS": 2},
         )
 
+    def test_non_json_metadata_is_stringified(self):
+        from datetime import datetime
+
+        cause = self.graph.record_decision(
+            category="compliance",
+            scenario="Audit finding",
+            reasoning="test",
+            outcome="approved",
+            confidence=0.9,
+            metadata={"reviewed_at": datetime(2026, 9, 1), "tags": {"hipaa"}},
+        )
+        self.graph.add_causal_relationship(cause, self.ids[0], "CAUSED")
+
+        payload = self._tools_call({"decision_id": self.ids[0], "direction": "upstream"})
+        metadata = next(d["metadata"] for d in payload["chain"] if d["scenario"] == "Audit finding")
+        self.assertEqual(metadata["reviewed_at"], "2026-09-01 00:00:00")
+        self.assertIsInstance(metadata["tags"], str)
+
 
 if __name__ == "__main__":
     unittest.main()
