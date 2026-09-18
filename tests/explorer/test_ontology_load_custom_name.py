@@ -91,9 +91,8 @@ def test_parsed_label_still_used_when_name_omitted():
     assert entry["name"] == "Labelled Ontology"
 
 
-def test_custom_name_used_on_fallback_parser_path(monkeypatch):
-    """The basic-parser fallback, taken when OntologyIngestor raises, builds its
-    own registry entry and must honour the same fields."""
+def _force_fallback_parser(monkeypatch) -> None:
+    """Make OntologyIngestor raise so the handler takes the basic-parser path."""
     import semantica.ingest.ontology_ingestor as ontology_ingestor
 
     class _FailingIngestor:
@@ -102,6 +101,12 @@ def test_custom_name_used_on_fallback_parser_path(monkeypatch):
 
     monkeypatch.setattr(ontology_ingestor, "OntologyIngestor", _FailingIngestor)
 
+
+def test_custom_name_used_on_fallback_parser_path(monkeypatch):
+    """The basic-parser fallback builds its own registry entry and must honour
+    the same fields."""
+    _force_fallback_parser(monkeypatch)
+
     with _client() as client:
         loaded = _load(client, UNTITLED, name="Custom Name", description="Custom description")
         registry = client.get("/api/ontology/registry").json()
@@ -109,3 +114,25 @@ def test_custom_name_used_on_fallback_parser_path(monkeypatch):
     assert loaded["name"] == "Custom Name"
     entry = next(e for e in registry if e["name"] == "Custom Name")
     assert entry["description"] == "Custom description"
+
+
+@pytest.mark.parametrize("fallback_parser", [False, True], ids=["ingestor", "fallback-parser"])
+def test_blank_name_and_description_behave_like_omitted(monkeypatch, fallback_parser):
+    """A blank value means "not set", as in the dialog's "Leave blank to use
+    ontology title" placeholder (OntologyLoader.tsx already sends
+    ``customName || undefined``). Storing "" verbatim would leave a nameless
+    row in the registry."""
+    if fallback_parser:
+        _force_fallback_parser(monkeypatch)
+
+    with _client() as client:
+        omitted = _load(client, LABELLED)
+        omitted_registry = client.get("/api/ontology/registry").json()
+    with _client() as client:
+        blank = _load(client, LABELLED, name="", description="")
+        blank_registry = client.get("/api/ontology/registry").json()
+
+    assert blank["name"] == omitted["name"] != ""
+    assert [(e["name"], e["description"]) for e in blank_registry] == [
+        (e["name"], e["description"]) for e in omitted_registry
+    ]
